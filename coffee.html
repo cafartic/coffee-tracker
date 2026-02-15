@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Coffee Machine Payoff Tracker</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      padding-top: 40px;
+    }
+    .app {
+      background: white;
+      padding: 20px 24px;
+      border-radius: 8px;
+      width: 380px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    .big {
+      font-size: 32px;
+      margin: 10px 0;
+    }
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .stats {
+      margin-top: 16px;
+      text-align: left;
+      font-size: 14px;
+    }
+    .bar {
+      background: #ddd;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 10px;
+      height: 20px;
+    }
+    .bar-inner {
+      background: #4caf50;
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .expense {
+      margin-top: 12px;
+      display: flex;
+      gap: 6px;
+    }
+    .expense input {
+      flex: 1;
+      padding: 6px;
+      font-size: 14px;
+    }
+    .footer {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>☕ Coffee Payoff Tracker</h1>
+
+    <div class="big" id="coffeeCount">0 coffees</div>
+
+    <button id="addCoffeeBtn">I made a coffee</button>
+
+    <div class="expense">
+      <input id="expenseInput" type="number" step="0.01" placeholder="Add expense ($)..." />
+      <button id="addExpenseBtn">Add expense</button>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="bar">
+      <div class="bar-inner" id="progressBar"></div>
+    </div>
+
+    <div class="footer">
+      Data is saved in your browser
+    </div>
+  </div>
+
+  <script>
+    // ---- Your base numbers ----
+    const baseMachineCost = 1000;
+
+    const cafePrice = 5.0;
+
+    const beansCostPerCup = 60 / 100;        // $0.60
+    const cleaningCostPerCup = 10 / 250;      // $0.04
+    const milkCostPerCup = 4 * (200 / 3000);  // ~$0.27
+
+    const homemadeCostPerCup = beansCostPerCup + cleaningCostPerCup + milkCostPerCup;
+    const savingPerCup = cafePrice - homemadeCostPerCup;
+    // ---------------------------
+
+    const addCoffeeBtn = document.getElementById("addCoffeeBtn");
+    const coffeeCountDiv = document.getElementById("coffeeCount");
+    const statsDiv = document.getElementById("stats");
+    const progressBar = document.getElementById("progressBar");
+    const expenseInput = document.getElementById("expenseInput");
+    const addExpenseBtn = document.getElementById("addExpenseBtn");
+
+    let coffeeCount = parseInt(localStorage.getItem("coffeeCount") || "0", 10);
+    let extraInvested = parseFloat(localStorage.getItem("extraInvested") || "0");
+    let startDate = localStorage.getItem("startDate");
+
+    if (!startDate) {
+      startDate = new Date().toISOString();
+      localStorage.setItem("startDate", startDate);
+    }
+
+    function save() {
+      localStorage.setItem("coffeeCount", coffeeCount.toString());
+      localStorage.setItem("extraInvested", extraInvested.toString());
+      localStorage.setItem("startDate", startDate);
+    }
+
+    function daysBetween(a, b) {
+      const msPerDay = 1000 * 60 * 60 * 24;
+      return Math.max(1, Math.floor((b - a) / msPerDay));
+    }
+
+    function render() {
+      const investedTotal = baseMachineCost + extraInvested;
+      const totalSaved = coffeeCount * savingPerCup;
+      const remaining = Math.max(0, investedTotal - totalSaved);
+      const coffeesToGo = remaining > 0 ? Math.ceil(remaining / savingPerCup) : 0;
+
+      coffeeCountDiv.textContent = `${coffeeCount} coffees`;
+
+      const percent = Math.min(100, (totalSaved / investedTotal) * 100);
+      progressBar.style.width = percent + "%";
+
+      // Estimate break-even date
+      const start = new Date(startDate);
+      const now = new Date();
+      const daysSoFar = daysBetween(start, now);
+      const avgPerDay = coffeeCount / daysSoFar;
+
+      let breakEvenText = "Not enough data yet";
+
+      if (avgPerDay > 0) {
+        const totalCoffeesNeeded = Math.ceil(investedTotal / savingPerCup);
+        const daysNeeded = Math.ceil(totalCoffeesNeeded / avgPerDay);
+        const breakEvenDate = new Date(start.getTime() + daysNeeded * 24 * 60 * 60 * 1000);
+        breakEvenText = breakEvenDate.toDateString();
+      }
+
+      statsDiv.innerHTML = `
+        <strong>Per coffee:</strong><br>
+        Café price: $${cafePrice.toFixed(2)}<br>
+        Homemade cost: $${homemadeCostPerCup.toFixed(2)}<br>
+        Saving per cup: $${savingPerCup.toFixed(2)}<br><br>
+
+        <strong>Investment:</strong><br>
+        Base machine: $${baseMachineCost.toFixed(2)}<br>
+        Extra expenses: $${extraInvested.toFixed(2)}<br>
+        Total invested: $${investedTotal.toFixed(2)}<br><br>
+
+        <strong>Progress:</strong><br>
+        Total saved: $${totalSaved.toFixed(2)}<br>
+        Remaining: $${remaining.toFixed(2)}<br>
+        Coffees to break even: ${coffeesToGo}<br><br>
+
+        <strong>Estimate:</strong><br>
+        Avg coffees/day: ${avgPerDay.toFixed(2)}<br>
+        Estimated break-even date: ${breakEvenText}
+      `;
+    }
+
+    addCoffeeBtn.addEventListener("click", () => {
+      coffeeCount++;
+      save();
+      render();
+    });
+
+    addExpenseBtn.addEventListener("click", () => {
+      const value = parseFloat(expenseInput.value);
+      if (isNaN(value) || value <= 0) return;
+
+      extraInvested += value;
+      expenseInput.value = "";
+      save();
+      render();
+    });
+
+    render();
+  </script>
+</b
